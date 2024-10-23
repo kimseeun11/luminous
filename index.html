@@ -3,60 +3,222 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>음성 인식 AI</title>
-    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-3622123394030954" crossorigin="anonymous"></script>
-
+    <title>Flutter Tetris</title>
     <style>
         body {
             font-family: Arial, sans-serif;
             text-align: center;
             margin-top: 50px;
+            background-color: #333;
+            color: white;
         }
-        #recognize-btn {
+        canvas {
+            border: 1px solid white;
+            background-color: black;
+            margin-top: 20px;
+        }
+        #controls {
+            margin-top: 20px;
+        }
+        button {
             padding: 10px 20px;
-            font-size: 18px;
+            font-size: 16px;
+            margin: 5px;
             background-color: #4CAF50;
             color: white;
             border: none;
             border-radius: 5px;
             cursor: pointer;
         }
-        #response-text {
-            margin-top: 20px;
-            font-size: 24px;
-            color: #333;
+        button:disabled {
+            background-color: #777;
         }
     </style>
-    <meta name="google-site-verification" content="YOZVxWwb4uq8TxdysVd25T51E08KhXgcT15NunsXl9c" />
+    <script>
+        let canvas, ctx;
+        let fixedBlocks = Array.from({ length: 20 }, () => Array(10).fill(0));
+        let currentBlock;
+        let heldBlock = null;
+        let blockSwapped = false;
+        let timer;
+        let score = 0;
+        let gameOver = false;
+        const gridWidth = 10;
+        const gridHeight = 20;
+        const baseSpeed = 500;
+        let speed = baseSpeed;
+        let level = 1;
+
+        window.onload = () => {
+            canvas = document.getElementById('gameCanvas');
+            ctx = canvas.getContext('2d');
+            document.getElementById('left').onclick = moveLeft;
+            document.getElementById('right').onclick = moveRight;
+            document.getElementById('rotate').onclick = rotateBlock;
+            document.getElementById('hold').onclick = holdBlock;
+            document.getElementById('restart').onclick = restartGame;
+            startGame();
+        };
+
+        function startGame() {
+            gameOver = false;
+            score = 0;
+            level = 1;
+            speed = baseSpeed;
+            fixedBlocks = Array.from({ length: 20 }, () => Array(10).fill(0));
+            currentBlock = getRandomBlock();
+            heldBlock = null;
+            blockSwapped = false;
+            if (timer) clearInterval(timer);
+            timer = setInterval(moveDown, speed);
+            draw();
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            drawBlocks(fixedBlocks, "#777");
+            drawBlocks(currentBlock.shape, "#4CAF50", currentBlock.x, currentBlock.y);
+        }
+
+        function drawBlocks(blocks, color, offsetX = 0, offsetY = 0) {
+            ctx.fillStyle = color;
+            for (let row = 0; row < blocks.length; row++) {
+                for (let col = 0; col < blocks[row].length; col++) {
+                    if (blocks[row][col]) {
+                        ctx.fillRect((col + offsetX) * 20, (row + offsetY) * 20, 20, 20);
+                    }
+                }
+            }
+        }
+
+        function moveDown() {
+            if (canMoveDown()) {
+                currentBlock.y++;
+            } else {
+                fixBlock();
+                if (checkGameOver()) {
+                    clearInterval(timer);
+                    gameOver = true;
+                    alert("Game Over");
+                } else {
+                    clearLines();
+                    currentBlock = getRandomBlock();
+                    blockSwapped = false;
+                }
+            }
+            draw();
+        }
+
+        function moveLeft() {
+            if (canMoveHorizontal(-1)) {
+                currentBlock.x--;
+            }
+            draw();
+        }
+
+        function moveRight() {
+            if (canMoveHorizontal(1)) {
+                currentBlock.x++;
+            }
+            draw();
+        }
+
+        function rotateBlock() {
+            const originalShape = currentBlock.shape;
+            currentBlock.shape = rotateMatrix(currentBlock.shape);
+            if (!canMoveDown() && !canMoveHorizontal(0)) {
+                currentBlock.shape = originalShape;
+            }
+            draw();
+        }
+
+        function holdBlock() {
+            if (blockSwapped) return;
+            if (!heldBlock) {
+                heldBlock = currentBlock;
+                currentBlock = getRandomBlock();
+            } else {
+                [heldBlock, currentBlock] = [currentBlock, heldBlock];
+                heldBlock.x = 3;
+                heldBlock.y = 0;
+            }
+            blockSwapped = true;
+            draw();
+        }
+
+        function restartGame() {
+            startGame();
+        }
+
+        function getRandomBlock() {
+            const shapes = [
+                [[1, 1], [1, 1]],
+                [[1, 1, 1, 1]],
+                [[1, 0, 0], [1, 1, 1]],
+                [[1, 1, 0], [0, 1, 1]]
+            ];
+            const shape = shapes[Math.floor(Math.random() * shapes.length)];
+            return { shape, x: 3, y: 0 };
+        }
+
+        function canMoveDown() {
+            return canMove(1, 0);
+        }
+
+        function canMoveHorizontal(direction) {
+            return canMove(0, direction);
+        }
+
+        function canMove(dy, dx) {
+            for (let row = 0; row < currentBlock.shape.length; row++) {
+                for (let col = 0; col < currentBlock.shape[row].length; col++) {
+                    if (currentBlock.shape[row][col]) {
+                        const newY = currentBlock.y + row + dy;
+                        const newX = currentBlock.x + col + dx;
+                        if (newY >= gridHeight || newX < 0 || newX >= gridWidth || fixedBlocks[newY][newX]) {
+                            return false;
+                        }
+                    }
+                }
+            }
+            return true;
+        }
+
+        function fixBlock() {
+            currentBlock.shape.forEach((row, rowIndex) => {
+                row.forEach((value, colIndex) => {
+                    if (value) {
+                        fixedBlocks[currentBlock.y + rowIndex][currentBlock.x + colIndex] = value;
+                    }
+                });
+            });
+        }
+
+        function clearLines() {
+            fixedBlocks = fixedBlocks.filter(row => row.some(block => !block));
+            while (fixedBlocks.length < gridHeight) {
+                fixedBlocks.unshift(Array(gridWidth).fill(0));
+            }
+        }
+
+        function checkGameOver() {
+            return fixedBlocks[0].some(block => block);
+        }
+
+        function rotateMatrix(matrix) {
+            return matrix[0].map((_, colIndex) => matrix.map(row => row[colIndex]).reverse());
+        }
+    </script>
 </head>
 <body>
-
-    <h1>음성 인식 AI</h1>
-    <button id="recognize-btn">말씀하세요!</button>
-    <div id="response-text"></div>
-
-    <!-- 광고 단위 추가 -->
-    <ins class="adsbygoogle"
-         style="display:block; margin: 20px auto;"  <!-- 중앙 정렬 및 여백 추가 -->
-         data-ad-client="ca-pub-3622123394030954"
-         data-ad-slot="YOUR_AD_SLOT"  <!-- 여기에 광고 슬롯 ID 추가 -->
-         data-ad-format="auto"></ins>
-    <script>
-         (adsbygoogle = window.adsbygoogle || []).push({});
-    </script>
-
-    <script>
-        document.getElementById('recognize-btn').addEventListener('click', function() {
-            // 버튼을 클릭하면 서버에 음성 인식 요청을 보냄
-            fetch('/speech', { method: 'POST' })
-                .then(response => response.json())
-                .then(data => {
-                    // 서버에서 받아온 응답을 화면에 표시
-                    document.getElementById('response-text').innerText = data.response;
-                })
-                .catch(error => console.error('Error:', error));
-        });
-    </script>
-
+    <h1>Flutter Tetris</h1>
+    <canvas id="gameCanvas" width="200" height="400"></canvas>
+    <div id="controls">
+        <button id="left"><<</button>
+        <button id="rotate">회전</button>
+        <button id="hold">보관</button>
+        <button id="restart">재시작</button>
+        <button id="right">>></button>
+    </div>
 </body>
 </html>
